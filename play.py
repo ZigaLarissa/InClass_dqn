@@ -1,92 +1,186 @@
 import pygame
-from stable_baselines3 import PPO
+from stable_baselines3 import DQN
 from test_env import ClassEnvironment
 
-# Constants for visualization
-WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 400
-BAR_WIDTH = 100
-BAR_HEIGHT = 300
-BAR_GAP = 50
-BAR_COLORS = {"Knowledge": (0, 255, 0), "Boredom": (255, 0, 0), "Energy": (0, 0, 255)}
-ACTIONS = ["Teach", "Test", "Assign Homework"]
+# Constants
+WINDOW_WIDTH, WINDOW_HEIGHT = 800, 400
+GROUND_HEIGHT = WINDOW_HEIGHT - 50
+SCROLL_SPEED = 3
+FPS = 30
+FONT_SIZE = 24
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
 
 # Initialize pygame
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption("Classroom Environment Simulation")
-
-# Load the trained model
-model = PPO.load("classroom_policy")
-
-# Create the environment
-env = ClassEnvironment()
-state, _ = env.reset()
-
-# Variables for timing decisions
-frames_per_decision = 30  # How many frames before the agent decides
-frame_counter = 0  # Counts frames between decisions
-next_state = state.copy()  # To interpolate smoothly
-
-# Main simulation loop
-done = False
+pygame.display.set_caption("Classroom Simulation")
 clock = pygame.time.Clock()
-action_text = "Starting Simulation"
-reward = 0
 
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            exit()
+# Load images
+agent_image = pygame.image.load("images/agent.png")
+obstacle_image = pygame.image.load("images/obstacle.png")
+reward_image = pygame.image.load("images/reward.png")
+goal_image = pygame.image.load("images/goal.png")
 
-    if not done and frame_counter % frames_per_decision == 0:
-        # Predict the action using the trained model
-        action, _states = model.predict(state, deterministic=True)
-        action_text = f"Action: {ACTIONS[action]}"
-        next_state, reward, done, _, _ = env.step(action)
-        frame_counter = 1  # Reset the frame counter for the next decision
+# Resize images for consistency
+agent_image = pygame.transform.scale(agent_image, (50, 50))
+obstacle_image = pygame.transform.scale(obstacle_image, (50, 50))
+reward_image = pygame.transform.scale(reward_image, (50, 50))
+goal_image = pygame.transform.scale(goal_image, (50, 50))
 
-    # Gradually update the bar values for smooth transitions
-    interpolated_state = [
-        state[i] + (next_state[i] - state[i]) * (frame_counter / frames_per_decision)
-        for i in range(len(state))
-    ]
-    state = next_state if frame_counter == frames_per_decision else state
+# Load font
+font = pygame.font.Font(None, FONT_SIZE)
 
-    # Clear the screen
-    screen.fill((255, 255, 255))  # White background
+# Predefined level layout
+LEVEL_LAYOUT = [
+    {"x": 300, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 600, "type": "reward"},    # Fixed reward position
+    {"x": 900, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 1200, "type": "reward"},   # Fixed reward position
+    {"x": 1500, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 1800, "type": "reward"},    # Fixed reward position
+    {"x": 2100, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 2400, "type": "reward"},   # Fixed reward position
+    {"x": 2700, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 3000, "type": "reward"},    # Fixed reward position
+    {"x": 3300, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 3600, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 3900, "type": "obstacle"},  # Fixed obstacle position
+    {"x": 4200, "type": "reward"},   # Fixed reward position
+    {"x": 4500, "type": "reward"},   # Fixed reward position
+    {"x": 4800, "type": "goal"},     # Fixed goal position
+]
 
-    # Draw the bars for each state variable
-    labels = ["Knowledge", "Boredom", "Energy"]
-    for i, (label, value) in enumerate(zip(labels, interpolated_state)):
-        x = BAR_GAP + i * (BAR_WIDTH + BAR_GAP)
-        y = WINDOW_HEIGHT - BAR_HEIGHT
-        bar_height = int(value / 10 * BAR_HEIGHT)  # Scale value to bar height
-        pygame.draw.rect(screen, BAR_COLORS[label], (x, y + BAR_HEIGHT - bar_height, BAR_WIDTH, bar_height))
-        
-        # Add label and value
-        font = pygame.font.Font(None, 36)
-        text = font.render(f"{label}: {value:.1f}", True, (0, 0, 0))
-        screen.blit(text, (x, y + BAR_HEIGHT + 10))
+# Agent class
+class Agent:
+    def __init__(self):
+        self.image = agent_image
+        self.x = 100
+        self.y = GROUND_HEIGHT
+        self.velocity_y = 0
+        self.jumping = False
 
-    # Display action and reward
-    font = pygame.font.Font(None, 48)
-    action_display = font.render(action_text, True, (0, 0, 0))
-    reward_display = font.render(f"Reward: {reward:.2f}", True, (0, 0, 0))
-    screen.blit(action_display, (WINDOW_WIDTH // 2 - 150, 20))
-    screen.blit(reward_display, (WINDOW_WIDTH // 2 - 150, 60))
+    def jump(self):
+        if not self.jumping:  # Only jump if on the ground
+            self.velocity_y = -15  # Jump strength
+            self.jumping = True
 
-    # Show "Simulation Over" when done
-    if done:
-        end_text = font.render("Simulation Over", True, (255, 0, 0))
-        screen.blit(end_text, (WINDOW_WIDTH // 2 - 120, 100))
+    def apply_gravity(self):
+        # Apply gravity and update vertical position
+        if self.jumping:
+            self.velocity_y += 0.5  # Adjusted gravity
+            self.y += self.velocity_y
 
-    # Update the display
+        # Stop at the ground
+        if self.y >= GROUND_HEIGHT:
+            self.y = GROUND_HEIGHT
+            self.jumping = False
+
+    def draw(self, surface):
+        surface.blit(self.image, (self.x, self.y - 50))  # Adjust to center
+
+
+def draw_score(surface, score):
+    """
+    Display the current score on the screen.
+    """
+    score_text = font.render(f"Score: {score}", True, BLACK)
+    surface.blit(score_text, (10, 10))
+
+
+def end_game(message, final_score):
+    """
+    Display a Game Over or Victory message and final score.
+    """
+    screen.fill(WHITE)
+    message_text = font.render(message, True, RED)
+    score_text = font.render(f"Final Score: {final_score}", True, BLACK)
+
+    screen.blit(message_text, (WINDOW_WIDTH // 2 - 100, WINDOW_HEIGHT // 2 - 30))
+    screen.blit(score_text, (WINDOW_WIDTH // 2 - 100, WINDOW_HEIGHT // 2 + 10))
+
     pygame.display.flip()
+    pygame.time.wait(3000)  # Wait for 3 seconds before closing
 
-    # Increment frame counter
-    frame_counter += 1
 
-    # Limit frame rate for better visualization
-    clock.tick(30)
+# Main game loop
+def main():
+    # Load the trained model
+    model = DQN.load("classroom_dqn_model")
+
+    # Create the environment
+    env = ClassEnvironment()
+    state, _ = env.reset()
+
+    agent = Agent()
+    objects = [{"x": obj["x"], "type": obj["type"], "image": obstacle_image if obj["type"] == "obstacle" else
+               reward_image if obj["type"] == "reward" else goal_image} for obj in LEVEL_LAYOUT]
+    score = 0
+    running = True
+    scroll_offset = 0
+
+    while running:
+        screen.fill(WHITE)  # Clear the screen
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+        # Scroll the level
+        scroll_offset += SCROLL_SPEED
+
+        # Check for nearby obstacles and jump
+        for obj in objects:
+            obj_x = obj["x"] - scroll_offset
+            # Improved jump logic with increased range
+            if obj["type"] == "obstacle" and 100 < obj_x - agent.x < 130 and not agent.jumping:
+                agent.jump()
+
+        # Apply gravity and update the agent
+        agent.apply_gravity()
+        agent.draw(screen)
+
+        # Draw ground
+        pygame.draw.line(screen, BLACK, (0, GROUND_HEIGHT + 10), (WINDOW_WIDTH, GROUND_HEIGHT + 10), 2)
+
+        # Draw obstacles, rewards, and goals
+        for obj in list(objects):
+            obj_x = obj["x"] - scroll_offset
+
+            if 0 < obj_x < WINDOW_WIDTH:  # Only draw if visible
+                screen.blit(obj["image"], (obj_x, GROUND_HEIGHT - 50 if obj["type"] != "reward" else GROUND_HEIGHT - 100))
+
+                # Collision detection
+                if obj["type"] == "obstacle" and abs(agent.x - obj_x) < 30 and agent.y >= GROUND_HEIGHT - 50:
+                    end_game("Game Over!", score)
+                    running = False
+                elif obj["type"] == "reward" and abs(agent.x - obj_x) < 30 and agent.y >= GROUND_HEIGHT - 100:
+                    score += 1
+                    objects.remove(obj)
+                elif obj["type"] == "goal" and abs(agent.x - obj_x) < 30:
+                    end_game("You Win!", score)
+                    running = False
+
+            if obj_x < -50:  # Remove objects off-screen
+                objects.remove(obj)
+
+        # Update state
+        action = 0
+        state, _, _, _, _ = env.step(action)
+
+        # Display the score
+        draw_score(screen, score)
+
+        # Update the display
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    pygame.quit()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,33 +1,44 @@
 import gymnasium as gym
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from test_env import ClassEnvironment
+from stable_baselines3 import DQN
+from stable_baselines3.common.vec_env import DummyVecEnv
+from test_env import ClassEnvironment  # Import your custom environment
 
-# Create a vectorized environment
-env = make_vec_env(lambda: ClassEnvironment(), n_envs=1)
+# 1. Create the environment
+# Wrap the environment in a DummyVecEnv for compatibility with Stable-Baselines3
+env = DummyVecEnv([lambda: ClassEnvironment()])
 
-# Define the agent with enhanced PPO parameters
-model = PPO(
-    "MlpPolicy",
+# 2. Define the DQN Agent
+model = DQN(
+    "MlpPolicy",  # Multi-Layer Perceptron (MLP) policy
     env,
-    verbose=1,
-    learning_rate=3e-4,              # Default is 3e-4, adjust to 1e-4 for finer learning
-    n_steps=2048,                   # Number of steps per update (higher means more stable gradients)
-    batch_size=64,                  # Mini-batch size for updates
-    n_epochs=10,                    # Number of epochs when optimizing the surrogate loss
-    gamma=0.99,                     # Discount factor for future rewards
-    gae_lambda=0.95,                # GAE parameter for advantage estimation
-    clip_range=0.2,                 # PPO clipping parameter
-    ent_coef=0.01,                  # Entropy coefficient for exploration
-    vf_coef=0.5,                    # Value function coefficient
-    max_grad_norm=0.5,              # Gradient clipping
-    target_kl=0.03                  # Stop training if KL divergence exceeds this value
+    learning_rate=1e-3,
+    buffer_size=50000,  # Replay buffer size
+    learning_starts=1000,  # Number of steps before learning starts
+    batch_size=32,  # Mini-batch size
+    tau=1e-3,  # Soft update coefficient for the target network
+    gamma=0.99,  # Discount factor
+    train_freq=4,  # Train every 4 steps
+    target_update_interval=1000,  # Update the target network every 1000 steps
+    verbose=1,  # Print training progress
 )
 
-# Train the model
-print("Training the PPO agent...")
-model.learn(total_timesteps=200000)  # Increased training steps for better performance
+# 3. Train the model
+print("Training the DQN agent...")
+model.learn(total_timesteps=50000)  # Number of training steps
 
-# Save the model
-model.save("classroom_policy")
-print("Training complete and model saved.")
+# 4. Save the model
+model.save("classroom_dqn_model")
+print("Model saved to 'classroom_dqn_model.zip'.")
+
+# 5. Test the trained agent
+print("Testing the trained agent...")
+env = ClassEnvironment()
+obs, _ = env.reset()
+done = False
+
+while not done:
+    action, _states = model.predict(obs, deterministic=True)
+    obs, reward, done, _, _ = env.step(action)
+    env.render()
+
+print("Testing complete.")

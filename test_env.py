@@ -4,66 +4,101 @@ import numpy as np
 
 class ClassEnvironment(gym.Env):
     """
-    A simple classroom environment where actions affect student knowledge.
+    A classroom simulation where the agent moves through obstacles and rewards.
     """
     def __init__(self):
         super(ClassEnvironment, self).__init__()
         
-        # Define the action space (e.g., 0 = teach, 1 = test, 2 = assign homework)
-        self.action_space = spaces.Discrete(3)
+        # Define the action space (0 = No action, 1 = Jump)
+        self.action_space = spaces.Discrete(2)
         
-        # Define the state space (student knowledge level, boredom, energy)
-        self.observation_space = spaces.Box(low=0, high=10, shape=(3,), dtype=np.float32)
+        # Define the observation space (agent position, vertical position, and upcoming obstacles/rewards)
+        self.observation_space = spaces.Box(
+            low=0, high=10, shape=(4,), dtype=np.float32  # [x, y, next_obstacle_x, next_obstacle_type]
+        )
         
-        # Initialize state
-        self.state = np.array([5.0, 5.0, 5.0])  # [knowledge, boredom, energy]
+        # Initialize environment
+        self.agent_pos = [0, 0]  # [x, y]
+        self.velocity_y = 0
+        self.jumping = False
+        self.gravity = 1
         
-        # Other parameters
-        self.max_steps = 100
+        # Level layout (x-coordinates and types: 1 = obstacle, 2 = reward, 3 = goal)
+        self.level_layout = [
+            {"x": 3, "type": 1},  # Cheating
+            {"x": 5, "type": 2},  # Studying
+            {"x": 7, "type": 1},  # Skipping Class
+            {"x": 9, "type": 2},  # Studying
+            {"x": 11, "type": 3},  # Passing (Goal)
+        ]
         self.current_step = 0
+        self.max_steps = len(self.level_layout)
 
     def reset(self, seed=None, options=None):
         """
-        Reset the environment to an initial state.
+        Reset the environment to its initial state.
         """
-        self.state = np.array([5.0, 5.0, 5.0])
+        self.agent_pos = [0, 0]
+        self.velocity_y = 0
+        self.jumping = False
         self.current_step = 0
-        return self.state, {}
+        return self._get_obs(), {}
+
+    def _get_obs(self):
+        """
+        Construct the observation.
+        """
+        if self.current_step < self.max_steps:
+            next_obstacle = self.level_layout[self.current_step]
+            return np.array([self.agent_pos[0], self.agent_pos[1], next_obstacle["x"], next_obstacle["type"]])
+        else:
+            return np.array([self.agent_pos[0], self.agent_pos[1], 10, 3])  # Goal state
 
     def step(self, action):
         """
-        Apply the action and update the environment state.
+        Apply the action and update the environment.
         """
-        knowledge, boredom, energy = self.state
+        # Update agent position
+        self.agent_pos[0] += 0.1  # Move forward automatically
 
-        # Define the effect of each action
-        if action == 0:  # Teach
-            knowledge += 2
-            boredom += 1
-            energy -= 1
-        elif action == 1:  # Test
-            knowledge += 1
-            boredom += 1
-            energy -= 2
-        elif action == 2:  # Assign Homework
-            knowledge += 1
-            boredom -= 1
-            energy -= 1
+        # Apply jump logic
+        if action == 1 and not self.jumping:
+            self.velocity_y = -5
+            self.jumping = True
 
-        # Rewards based on state
-        reward = knowledge - (boredom * 0.5) - (max(0, 10 - energy) * 0.5)
+        # Apply gravity
+        self.velocity_y += self.gravity
+        self.agent_pos[1] += self.velocity_y
 
-        # Update state
-        self.state = np.clip([knowledge, boredom, energy], 0, 10)
-        self.current_step += 1
+        # Stop the agent at ground level
+        if self.agent_pos[1] < 0:
+            self.agent_pos[1] = 0
+            self.jumping = False
 
-        # Check if the episode is done
-        done = self.current_step >= self.max_steps
+        # Check collision
+        done = False
+        reward = 0
+        if self.current_step < self.max_steps:
+            next_obstacle = self.level_layout[self.current_step]
+            if abs(self.agent_pos[0] - next_obstacle["x"]) < 0.2:  # Collision zone
+                if next_obstacle["type"] == 1:  # Obstacle
+                    reward -= 5  # Penalty
+                    done = True
+                elif next_obstacle["type"] == 2:  # Reward
+                    reward += 10  # Reward for studying
+                    self.current_step += 1  # Move to the next obstacle/reward
+                elif next_obstacle["type"] == 3:  # Goal
+                    reward += 50  # Big reward for passing
+                    done = True
 
-        return self.state, reward, done, False, {}
+        # Check if the agent has finished the level
+        if self.agent_pos[0] >= 10:
+            done = True
+
+        return self._get_obs(), reward, done, False, {}
 
     def render(self):
         """
-        Render the environment (can be expanded for a visual UI).
+        Render the environment (print the state for debugging).
         """
-        print(f"State: {self.state}")
+        print(f"Agent Position: {self.agent_pos}, Next Obstacle: {self.level_layout[self.current_step]}")
