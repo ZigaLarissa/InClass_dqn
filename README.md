@@ -1,118 +1,77 @@
-# Classroom Environment Simulation with Reinforcement Learning
+# Classroom DQN Agent
 
-This project demonstrates a reinforcement learning (RL) agent optimizing its actions in a simulated classroom environment. The agent is trained to maximize student knowledge while balancing boredom and energy levels.
-
-## Features
-- A custom **Classroom Environment** implemented using the `gymnasium` framework.
-- Reinforcement learning agent powered by **Stable-Baselines3** and trained with the **PPO** algorithm.
-- Dynamic 2D visualization using **pygame**, showing real-time updates of the agent's actions and their impact on the environment.
+A reinforcement learning project where a Deep Q-Network (DQN) agent is trained to navigate a classroom-like simulation. The agent learns to avoid obstacles, collect rewards, and reach the goal while improving its strategy over time.
 
 ---
 
-## Table of Contents
-- [Installation](#installation)
-- [Usage](#usage)
-- [Files](#files)
-- [Environment Details](#environment-details)
-- [Visualization](#visualization)
-- [Future Work](#future-work)
+## Video Demo
+
+- 🎥 **Watch the simulation video here**: [Classroom DQN Agent Simulation](https://www.loom.com/share/d91eb70716894a10aa42d7d601c29b15?sid=cad75f30-24b4-44ab-85f5-e789370e0366)
+- 🎥 **Watch the demo video here**: [Classroom DQN Agent Demo](https://youtu.be/KBZWZwZCfq0)
 
 ---
 
-## Installation
+## Brief Description
 
-1. **Clone the repository**:
+This project uses reinforcement learning to create an intelligent agent capable of navigating a classroom environment. The agent:
+- Learns from interactions with the environment using the DQN algorithm.
+- Adapts to avoid obstacles, collect rewards, and reach the designated goal.
+- Operates in a visually rendered simulation built with Pygame.
+
+---
+
+## How to Set Up and Run the Project
+
+### Prerequisites
+
+- Python 3.8 or higher
+- pip for managing dependencies
+
+### Installation
+
+1. **Clone the Repository**:
    ```bash
-   git clone <repository-url>
-   cd <repository-folder>
+   git clone https://github.com/ZigaLarissa/InClass_dqn.git
+   cd classroom-dqn-agent
    ```
 
-2. **Install dependencies**:
+2. **Install Dependencies**:
+   Use the `requirements.txt` file to install the necessary Python packages:
    ```bash
-   pip install gymnasium stable-baselines3 pygame tensorflow tabulate
+   pip install -r requirements.txt
    ```
 
-3. **Verify installation**:
-   Ensure all dependencies are installed without errors.
+### Training the Agent
 
----
-
-## Usage
-
-### Training the RL Agent
-1. Train the agent using the `train.py` script:
+To train the agent from scratch:
+1. Ensure your environment is defined in `test_env.py`.
+2. Run the training script:
    ```bash
    python train.py
    ```
-   The trained model will be saved as `classroom_policy.zip`.
+   - The model will be saved as `classroom_dqn_model.zip` upon completion.
 
-### Simulating the Trained Agent
-2. Visualize the agent's decisions in a 2D simulation:
+### Running the Simulation
+
+1. Place the necessary images (`agent.png`, `obstacle.png`, `reward.png`, `goal.png`) in the `images/` folder.
+2. Run the simulation with the trained model:
    ```bash
    python play.py
    ```
-   This will open a window showing:
-   - **Bars** representing student knowledge, boredom, and energy levels.
-   - The **agent's actions** (e.g., *Teach*, *Test*, *Assign Homework*).
-   - The **reward** received after each action.
+3. Watch as the agent navigates the environment autonomously!
 
 ---
 
-## Files
+## Project Structure
 
-### `test_env.py`
-- Implements the custom **Classroom Environment** for the RL agent.
-- State variables:
-  - `Knowledge`: Represents student understanding of the subject.
-  - `Boredom`: Increases with repetitive or unengaging actions.
-  - `Energy`: Decreases with intensive tasks or actions.
+```plaintext
+├── README.md               # Project description and instructions
+├── classroom_dqn_model.zip # Pre-trained DQN model
+├── play.py                 # Gameplay and rendering script
+├── test_env.py             # Custom classroom environment
+├── train.py                # Training script for the DQN agent
+├── images/                 # Assets for the game (agent, obstacles, rewards, etc.)
+├── requirements.txt        # Python dependencies
+└── __pycache__/            # Cached Python files
+```
 
-### `train.py`
-- Trains the RL agent using the PPO algorithm from `Stable-Baselines3`.
-- Saves the trained policy as `classroom_policy.zip`.
-
-### `play.py`
-- Loads the trained agent and simulates its behavior in the environment.
-- Uses **pygame** to provide a real-time 2D visualization of state changes and actions.
-
----
-
-## Environment Details
-
-### State Space
-- `Knowledge`, `Boredom`, and `Energy` values range from 0 to 10.
-
-### Action Space
-- **Teach**: Increases knowledge but raises boredom and decreases energy.
-- **Test**: Moderately increases knowledge but significantly reduces energy.
-- **Assign Homework**: Slightly increases knowledge, reduces boredom, and moderately decreases energy.
-
-### Rewards
-- The agent is rewarded based on a combination of high knowledge, low boredom, and sufficient energy levels:
-  ```python
-  reward = knowledge - (boredom * 0.5) - (max(0, 10 - energy) * 0.5)
-  ```
-
----
-
-## Visualization
-
-The **pygame-based simulation** provides a dynamic visualization:
-- **Bars**: Represent knowledge, boredom, and energy levels.
-- **Action Feedback**: Displays the agent's current action (e.g., *Teach*, *Test*).
-- **Reward Feedback**: Shows the reward received for each action.
-- **Simulation Over**: Indicates when the episode ends.
-
----
-
-## Future Work
-
-- Add **interactive controls** (e.g., pause, restart, or manual action selection).
-- Improve the environment with more complex states and actions.
-- Integrate a **cumulative reward tracker** in the visualization.
-- Expand visualization to include **student performance metrics**.
-
----
-
-## License
-This project is open-source and available under the MIT License.
